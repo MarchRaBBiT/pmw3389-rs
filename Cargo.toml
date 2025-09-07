@@ -1,0 +1,20 @@
+[package]
+name = "pmw3389"
+version = "0.1.0"
+edition = "2024"
+authors = ["YAGI Toshiki <YayoiInaba@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Embedded rust driver for the PixArt PMW3389 optical motion sensor"
+repository = "https://github.com/MarRaBBiT/pmw3389-rs"
+
+[dependencies]
+embedded-hal = "1.0"
+embedded-hal-async = "1.0"
+
+[dev-dependencies]
+rp2040-hal = "0.10.2"       # HAL for RP2040
+cortex-m-rt = "0.7.3"
+cortex-m = "0.7.7"
+panic-halt = "0.2.0"
+# my own pmw3389 driver
+pmw3389 = { path = "../pmw3389-rs" }
