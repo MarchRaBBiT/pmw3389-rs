@@ -5,7 +5,7 @@ use cortex_m_rt::entry;
 use panic_halt as _;
 
 use embedded_hal::spi::SpiDevice;
-use hal::{gpio::FunctionSpi, pac, spi::Spi, uart::UartPeripheral};
+use hal::{spi::Spi, uart::UartPeripheral};
 use pmw3389::Pmw3389;
 use rp2040_hal as hal;
 

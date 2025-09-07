@@ -75,7 +75,7 @@ fn main() -> ! {
             uart.write_full_blocking(b"00\r\n");
         }
 
-        sensor.delay.delay_ms(2000);
+        delay.delay_ms(2000);
     }
 
     loop {}
