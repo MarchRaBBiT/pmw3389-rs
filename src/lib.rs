@@ -47,11 +47,7 @@ where
     D: DelayNs,
 {
     /// Create a new driver instance
-    pub fn new(
-        spi: SPI,
-        mut cs: CS,
-        delay: D,
-    ) -> Result<Self, Error<SPI::Error, CS::Error>> {
+    pub fn new(spi: SPI, mut cs: CS, delay: D) -> Result<Self, Error<SPI::Error, CS::Error>> {
         cs.set_high().map_err(Error::Pin)?;
         Ok(Self { spi, cs, delay })
     }
@@ -170,7 +166,11 @@ where
         Ok(buf[0])
     }
 
-    fn write_register(&mut self, reg: Register, value: u8) -> Result<(), Error<SPI::Error, CS::Error>> {
+    fn write_register(
+        &mut self,
+        reg: Register,
+        value: u8,
+    ) -> Result<(), Error<SPI::Error, CS::Error>> {
         self.cs.set_low().map_err(Error::Pin)?;
         let addr = reg.addr() | 0x80;
         self.spi.write(&[addr, value]).map_err(Error::Spi)?;

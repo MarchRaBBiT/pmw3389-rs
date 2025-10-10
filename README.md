@@ -81,10 +81,22 @@ See the [`examples/`](examples) directory for runnable code:
 * [`cpi.rs`](examples/cpi.rs): Demonstrates setting CPI
 * [`power_down.rs`](examples/power_down.rs): Demonstrates power-down mode
 
-To build and run on RP2040 (via probe-rs):
+To build for RP2040 and convert to a UF2 image:
 
 ```bash
-cargo run --release --example rp2040-zero
+# Build the example for the RP2040 target
+cargo build --release --example rp2040-zero --target thumbv6m-none-eabi
+
+# Convert the produced ELF into a UF2 image (writes rp2040-zero.uf2 next to the ELF)
+cargo run --bin rp2040-uf2 -- target/thumbv6m-none-eabi/release/examples/rp2040-zero
+```
+
+The conversion tool accepts an optional second argument if you want to override the
+output path:
+
+```bash
+cargo run --bin rp2040-uf2 -- target/thumbv6m-none-eabi/release/examples/rp2040-zero \
+    firmware/rp2040-zero.uf2
 ```
 
 ---

@@ -13,6 +13,9 @@ use rp2040_hal::fugit::RateExtU32;
 use rp2040_hal::prelude::*;
 use rp2040_hal::uart::UartConfig;
 use rp2040_hal::{self as hal};
+#[link_section = ".boot2"]
+#[used]
+static BOOT_LOADER: [u8; 256] = rp2040_boot2::BOOT_LOADER;
 
 // build.rs または firmware ディレクトリから埋め込み
 const PMW3389_SROM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/pmw3389_srom.bin"));
