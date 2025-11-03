@@ -1,22 +1,40 @@
 [package]
 name = "pmw3389"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 authors = ["YAGI Toshiki <YayoiInaba@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Embedded rust driver for the PixArt PMW3389 optical motion sensor"
-repository = "https://github.com/MarRaBBiT/pmw3389-rs"
+repository = "https://github.com/MarchRaBBiT/pmw3389-rs"
 
 [dependencies]
 embedded-hal = "1.0"
 embedded-hal-async = "1.0"
+defmt = { version = "1.0", optional = true }
 
 [dev-dependencies]
-rp2040-hal = "0.10.2"       # HAL for RP2040
-cortex-m-rt = "0.7.4"
-cortex-m = "0.7.7"
-panic-halt = "0.2.0"
+embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", rev = "03a16011f63c11c97ded10f7e6b872db81280a23", features = ["defmt", "arch-cortex-m", "executor-thread"] }
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "03a16011f63c11c97ded10f7e6b872db81280a23", features = ["defmt"] }
+embassy-rp = { git = "https://github.com/embassy-rs/embassy.git", rev = "03a16011f63c11c97ded10f7e6b872db81280a23", features = ["rp2040", "defmt", "time-driver", "critical-section-impl"] }
+embassy-usb = { git = "https://github.com/embassy-rs/embassy.git", rev = "03a16011f63c11c97ded10f7e6b872db81280a23" }
+embassy-usb-driver = "0.2.0"
+cortex-m-rt = "0.7.5"
+futures = { version = "0.3", default-features = false, features = ["async-await"] }
+portable-atomic = { version = "1.11", features = ["critical-section"] }
+defmt = "1.0"
+defmt-rtt = "0.4"
+panic-probe = { version = "1.0", features = ["print-defmt"] }
 itoa = "1.0"
-hex = "0.4"
-# my own pmw3389 driver
-pmw3389 = { path = "../pmw3389-rs" }
+hex = { version = "0.4", default-features = false }
+pmw3389 = { path = ".", features = ["defmt"] }
+
+[features]
+default = []
+device-status = []
+defmt = ["dep:defmt"]
+
+[package.metadata.rp2040]
+# Default runner flashes firmware via probe-rs.
+runner = "probe-rs run --chip RP2040"
+# Alternative runner converts the built ELF into UF2 using elf2uf2-rs.
+# runner = "elf2uf2-rs"

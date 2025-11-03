@@ -1,111 +1,125 @@
 #![no_std]
 #![no_main]
 
-use cortex_m_rt::entry;
-use panic_halt as _;
-
-use embedded_hal::delay::DelayNs;
-use hal::{pac, spi::Spi, uart::UartPeripheral};
-use hex;
+use defmt::{info, unwrap};
+use defmt_rtt as _;
+use embassy_executor::Spawner;
+use embassy_rp::bind_interrupts;
+use embassy_rp::gpio::{Level, Output};
+use embassy_rp::peripherals::USB;
+use embassy_rp::spi::{Config, Phase, Polarity, Spi};
+use embassy_rp::usb::{Driver, InterruptHandler};
+use embassy_time::{Delay, Timer};
+use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
+use embassy_usb::Builder;
+use futures::join;
 use itoa;
+use panic_probe as _;
 use pmw3389::Pmw3389;
-use rp2040_hal::fugit::RateExtU32;
-use rp2040_hal::prelude::*;
-use rp2040_hal::uart::UartConfig;
-use rp2040_hal::{self as hal};
 
-// build.rs または firmware ディレクトリから埋め込み
+// SROM for PMW3389
 const PMW3389_SROM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/pmw3389_srom.bin"));
 
-#[entry]
-fn main() -> ! {
-    let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
+bind_interrupts! { struct Irqs {
+    USBCTRL_IRQ => InterruptHandler<USB>;
+} }
 
-    let mut watchdog = hal::Watchdog::new(pac.WATCHDOG);
+#[embassy_executor::main]
+async fn main(_spawner: Spawner) {
+    let p = embassy_rp::init(Default::default());
+    info!("Embassy initialized");
 
-    let clocks = hal::clocks::init_clocks_and_plls(
-        12_000_000,
-        pac.XOSC,
-        pac.CLOCKS,
-        pac.PLL_SYS,
-        pac.PLL_USB,
-        &mut pac.RESETS,
-        &mut watchdog,
-    )
-    .ok()
-    .unwrap();
+    // Create the USB driver
+    let driver = Driver::new(p.USB, Irqs);
 
-    let sio = hal::Sio::new(pac.SIO);
-    let pins = hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
+    // Create embassy-usb Config
+    let mut config = embassy_usb::Config::new(0x1209, 0x0001);
+    config.manufacturer = Some("Embassy");
+    config.product = Some("PMW3389 Example");
+    config.serial_number = Some("12345678");
+    config.max_power = 100;
+    config.max_packet_size_0 = 64;
+
+    // Required for windows compatibility.
+    config.device_class = 0x02;
+    config.device_sub_class = 0x02;
+    config.device_protocol = 0x01;
+    config.composite_with_iads = true;
+
+    // Create embassy-usb DeviceBuilder using the driver and config.
+    static mut CONFIG_DESC: [u8; 256] = [0; 256];
+    static mut BOS_DESC: [u8; 256] = [0; 256];
+    static mut MSOS_DESC: [u8; 256] = [0; 256];
+    static mut CONTROL_BUF: [u8; 128] = [0; 128];
+    static mut STATE: State = State::new();
+
+    let mut device_builder = Builder::new(
+        driver,
+        config,
+        unsafe { &mut CONFIG_DESC },
+        unsafe { &mut BOS_DESC },
+        unsafe { &mut MSOS_DESC },
+        unsafe { &mut CONTROL_BUF },
     );
 
-    let uart_pins = (
-        pins.gpio0.into_function::<hal::gpio::FunctionUart>(),
-        pins.gpio1.into_function::<hal::gpio::FunctionUart>(),
-    );
-    let uart_config = UartConfig::new(
-        115_200u32.Hz(),
-        hal::uart::DataBits::Eight,
-        None,
-        hal::uart::StopBits::One,
-    );
-    let mut uart = UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
-        .enable(uart_config, clocks.peripheral_clock.freq())
-        .unwrap();
+    // Create classes on the builder.
+    let mut class = CdcAcmClass::new(&mut device_builder, unsafe { &mut STATE }, 64);
 
-    // SPI: GPIO2=SCLK, GPIO3=MOSI, GPIO4=MISO, GPIO5=CSn
-    let spi_sclk = pins.gpio2.into_function::<hal::gpio::FunctionSpi>();
-    let spi_mosi = pins.gpio3.into_function::<hal::gpio::FunctionSpi>();
-    let spi_miso = pins.gpio4.into_function::<hal::gpio::FunctionSpi>();
+    // Build the builder.
+    let mut usb = device_builder.build();
 
-    let spi = Spi::<_, _, _, 8>::new(pac.SPI0, (spi_mosi, spi_miso, spi_sclk)).init(
-        &mut pac.RESETS,
-        clocks.peripheral_clock.freq(),
-        2_000_000u32.Hz(),
-        &embedded_hal::spi::MODE_3,
+    // Run the USB device.
+    let usb_fut = usb.run();
+
+    // Set up SPI
+    let mut spi_config = Config::default();
+    spi_config.frequency = 2_000_000;
+    spi_config.phase = Phase::CaptureOnSecondTransition;
+    spi_config.polarity = Polarity::IdleHigh;
+    let spi = Spi::new(
+        p.SPI0,
+        p.PIN_2, // SCLK
+        p.PIN_3, // MOSI
+        p.PIN_4, // MISO
+        p.DMA_CH0,
+        p.DMA_CH1,
+        spi_config,
     );
 
-    let cs_pin = pins.gpio5.into_push_pull_output();
+    let cs_pin = Output::new(p.PIN_5, Level::High);
 
-    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
+    // Create sensor driver
+    let mut sensor = unwrap!(Pmw3389::new(spi, cs_pin, Delay));
 
-    let mut sensor = Pmw3389::new(spi, cs_pin, delay).unwrap();
+    // --- Main Loop ---
+    let task = async {
+        loop {
+            class.wait_connection().await;
+            info!("USB connected");
 
-    uart.write_full_blocking(b"Init PMW3389...\r\n");
+            if let Err(e) = sensor.init(PMW3389_SROM) {
+                info!("Sensor init failed: {:?}", e);
+                loop {}
+            }
 
-    if let Err(_e) = sensor.init(PMW3389_SROM) {
-        uart.write_full_blocking(b"Init failed\r\n");
-        loop {}
-    }
+            let pid = unwrap!(sensor.product_id());
+            info!("Product ID: {=u8:#x}", pid);
 
-    let pid = sensor.product_id().unwrap();
-    let _ = uart.write_full_blocking(b"Product ID=0x");
-    // Simple hex formatting
-    let mut pid_buf = [0u8; 2];
-    hex::encode_to_slice(&[pid], &mut pid_buf).unwrap();
-    let _ = uart.write_full_blocking(&pid_buf);
-    let _ = uart.write_full_blocking(b"\r\n");
+            let mut dx_buf = itoa::Buffer::new();
+            let mut dy_buf = itoa::Buffer::new();
 
-    let mut dx_buf = itoa::Buffer::new();
-    let mut dy_buf = itoa::Buffer::new();
+            loop {
+                if let Ok(motion) = sensor.read_motion() {
+                    let dx_str = dx_buf.format(motion.delta_x);
+                    let dy_str = dy_buf.format(motion.delta_y);
 
-    loop {
-        if let Ok(motion) = sensor.read_motion() {
-            let dx_str = dx_buf.format(motion.delta_x);
-            let dy_str = dy_buf.format(motion.delta_y);
+                    info!("Motion: dx={}, dy={}", dx_str, dy_str);
+                }
 
-            uart.write_full_blocking(b"Motion dx=");
-            uart.write_full_blocking(dx_str.as_bytes());
-            uart.write_full_blocking(b", dy=");
-            uart.write_full_blocking(dy_str.as_bytes());
-            uart.write_full_blocking(b"\r\n");
+                Timer::after_millis(100).await;
+            }
         }
+    };
 
-        delay.delay_ms(100);
-    }
+    join!(usb_fut, task);
 }
