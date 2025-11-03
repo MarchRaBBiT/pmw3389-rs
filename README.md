@@ -4,10 +4,6 @@ An [embedded-hal 1.0](https://docs.rs/embedded-hal/1.0.0/embedded_hal/) compatib
 
 This crate provides a safe and ergonomic interface to initialize the sensor, configure CPI (counts per inch), read motion data, and manage power modes.
 
-> ⚠️ **Note:** The PMW3389 requires an external SROM firmware binary (`pmw3389_srom.bin`).  
-> Due to licensing restrictions, this file is **not included in this repository**.  
-> Please obtain it from PixArt, an official distributor, or your hardware vendor.
-
 ---
 
 ## ✨ Features
@@ -21,13 +17,24 @@ This crate provides a safe and ergonomic interface to initialize the sensor, con
 
 ---
 
+## ⚠️ SROM Firmware Requirement
+
+> **IMPORTANT:** This driver requires the `pmw3389_srom.bin` firmware to function.
+
+Due to licensing restrictions, the firmware binary is **not included** in this repository. You must obtain it from an official source and make it available to your project at compile time.
+
+*   **Source:** You must obtain the binary from PixArt, an official distributor, or your hardware vendor.
+*   **Usage:** The examples in this repository expect the file to be at `firmware/pmw3389_srom.bin`, but the driver's `init` function simply takes the firmware as a slice `&[u8]`.
+
+---
+
 ## 📦 Installation
 
 Add this crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pmw3389 = { git = "https://github.com/YOURNAME/pmw3389-rs" }
+pmw3389 = { git = "https://github.com/MarchRaBBiT/pmw3389-rs" }
 ````
 
 ---
@@ -87,15 +94,7 @@ To build and run on RP2040 (via probe-rs):
 cargo run --release --example rp2040-zero
 ```
 
----
-
-## ⚠️ SROM Firmware
-
-This driver requires the **PMW3389 SROM binary**.
-
-* It is **not distributed** due to licensing restrictions.
-* You must obtain it from PixArt, your distributor, or your hardware vendor.
-* Place it under `firmware/pmw3389_srom.bin` before building.
+Note: The default runner (configured in `Cargo.toml`) uses `probe-rs` for direct flashing. If you prefer generating a UF2 instead, install `elf2uf2-rs`, uncomment the `runner = "elf2uf2-rs"` line in `Cargo.toml`, and run the same command. A file like `target/thumbv6m-none-eabi/release/examples/rp2040-zero.uf2` will be produced for drag-and-drop deployment.
 
 ---
 
