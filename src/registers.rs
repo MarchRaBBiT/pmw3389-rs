@@ -66,6 +66,10 @@ pub enum Register {
     LiftCutoffCal3 = 0x41, // LiftCutoff_Cal3
     LiftCutoffCal1 = 0x4A, // LiftCutoff_Cal1
     LiftConfig = 0x63,     // Lift_Config
+
+    // Self-test
+    RunBist = 0x58,      // Run_BIST
+    BistResult = 0x59,   // BIST_Result
 }
 
 impl Register {

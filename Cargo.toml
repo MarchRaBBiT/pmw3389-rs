@@ -10,6 +10,7 @@ repository = "https://github.com/MarRaBBiT/pmw3389-rs"
 [dependencies]
 embedded-hal = "1.0"
 embedded-hal-async = "1.0"
+defmt = { version = "1.0", optional = true }
 
 [dev-dependencies]
 rp2040-hal = "0.10.2"       # HAL for RP2040
@@ -20,3 +21,8 @@ itoa = "1.0"
 hex = "0.4"
 # my own pmw3389 driver
 pmw3389 = { path = "../pmw3389-rs" }
+
+[features]
+default = []
+device-status = []
+defmt = ["dep:defmt"]
