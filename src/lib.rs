@@ -69,27 +69,31 @@ where
         self.read_register(Register::DeltaYL)?;
         self.read_register(Register::DeltaYH)?;
 
-        // 3. SROM Download sequence
-        self.write_register(Register::SromEnable, 0x1d)?;
-        self.delay.delay_ms(10);
-        self.write_register(Register::SromEnable, 0x18)?;
-        self.delay.delay_us(180); // Wait for SROM download to be ready
+        if !srom.is_empty() {
+            // 3. SROM Download sequence
+            self.write_register(Register::SromEnable, 0x1d)?;
+            self.delay.delay_ms(10);
+            self.write_register(Register::SromEnable, 0x18)?;
+            self.delay.delay_us(180); // Wait for SROM download to be ready
 
-        // 4. Burst write SROM data
-        self.cs.set_low().map_err(Error::Pin)?;
-        let addr = Register::MotionBurst.addr() | 0x80;
-        self.spi.write(&[addr]).map_err(Error::Spi)?;
-        self.delay.delay_us(15);
-
-        for byte in srom {
-            self.spi.write(&[*byte]).map_err(Error::Spi)?;
+            // 4. Burst write SROM data
+            self.cs.set_low().map_err(Error::Pin)?;
+            let addr = Register::MotionBurst.addr() | 0x80;
+            self.spi.write(&[addr]).map_err(Error::Spi)?;
             self.delay.delay_us(15);
-        }
-        self.cs.set_high().map_err(Error::Pin)?;
-        self.delay.delay_us(200); // Wait for SROM to initialize
 
-        // Read SROM ID to confirm download.
-        self.read_register(Register::SromId)?;
+            for byte in srom {
+                self.spi.write(&[*byte]).map_err(Error::Spi)?;
+                self.delay.delay_us(15);
+            }
+            self.cs.set_high().map_err(Error::Pin)?;
+            self.delay.delay_us(200); // Wait for SROM to initialize
+
+            // Read SROM ID to confirm download.
+            self.read_register(Register::SromId)?;
+        } else {
+            // Skip firmware upload when no SROM bytes are available.
+        }
 
         // 5. Set recommended performance settings
         self.write_register(Register::Config2, 0x00)?;
