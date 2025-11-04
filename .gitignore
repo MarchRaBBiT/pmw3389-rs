@@ -1,1 +1,3 @@
 /target
+firmware/pmw3389_srom.bin
+Cargo.lock
