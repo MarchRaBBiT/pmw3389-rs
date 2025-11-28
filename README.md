@@ -85,6 +85,8 @@ sensor.power_down()?;
 See the [`examples/`](examples) directory for runnable code:
 
 * [`rp2040-zero.rs`](examples/rp2040-zero.rs): Basic init + motion readout
+* [`waveshare-esp32s3.rs`](examples/waveshare-esp32s3.rs): Same flow for the Waveshare ESP32-S3 evaluation board (logs over USB-Serial-JTAG)
+* [`waveshare-esp32c3.rs`](examples/waveshare-esp32c3.rs): Same flow for the Waveshare ESP32-C3 evaluation board (logs over USB-Serial-JTAG)
 * [`cpi.rs`](examples/cpi.rs): Demonstrates setting CPI
 * [`power_down.rs`](examples/power_down.rs): Demonstrates power-down mode
 
@@ -92,6 +94,18 @@ To build and run on RP2040 (via probe-rs):
 
 ```bash
 cargo run --release --example rp2040-zero
+```
+
+To build for the Waveshare ESP32-C3 board (using the ESP toolchain and espflash):
+
+```bash
+cargo run --release --example waveshare-esp32c3 --target riscv32imc-unknown-none-elf
+```
+
+To build for the Waveshare ESP32-S3 board (using the ESP toolchain and espflash):
+
+```bash
+cargo run --release --example waveshare-esp32s3 --target xtensa-esp32s3-none-elf
 ```
 
 Note: The default runner (configured in `Cargo.toml`) uses `probe-rs` for direct flashing. If you prefer generating a UF2 instead, install `elf2uf2-rs`, uncomment the `runner = "elf2uf2-rs"` line in `Cargo.toml`, and run the same command. A file like `target/thumbv6m-none-eabi/release/examples/rp2040-zero.uf2` will be produced for drag-and-drop deployment.
