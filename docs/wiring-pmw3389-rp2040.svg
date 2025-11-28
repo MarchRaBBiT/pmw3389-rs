@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720">
+  <style>
+    text { font-family: "Segoe UI", sans-serif; font-size: 14px; fill: #2c3e50; }
+    .title { font-size: 18px; font-weight: 700; }
+    .panel { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 2; }
+    .block { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; }
+    .pin { fill: #ffffff; stroke: #64748b; stroke-width: 2; r: 6; }
+    .wire { stroke-width: 3; stroke-linecap: round; }
+    .optional { stroke-dasharray: 6 6; }
+    .note { font-size: 12px; fill: #475569; }
+  </style>
+
+  <!-- Panel: RP2040-Zero -->
+  <rect class="panel" x="20" y="20" width="520" height="680" rx="14" />
+  <text class="title" x="40" y="52">RP2040-Zero + PMW3389</text>
+  <text class="note" x="40" y="75">Orientation: USB up. SPI0 on GPIO2–5, 3V3 logic only.</text>
+
+  <!-- Sensor block (left) -->
+  <rect class="block" x="40" y="110" width="170" height="280" rx="10" />
+  <text x="70" y="140" font-weight="700">PMW3389</text>
+  <!-- Sensor pins -->
+  <g id="sensor1">
+    <g transform="translate(200 170)"><circle class="pin"/><text x="-150" y="5">VCC</text></g>
+    <g transform="translate(200 202)"><circle class="pin"/><text x="-150" y="5">GND</text></g>
+    <g transform="translate(200 234)"><circle class="pin"/><text x="-150" y="5">SCLK</text></g>
+    <g transform="translate(200 266)"><circle class="pin"/><text x="-150" y="5">MOSI</text></g>
+    <g transform="translate(200 298)"><circle class="pin"/><text x="-150" y="5">MISO</text></g>
+    <g transform="translate(200 330)"><circle class="pin"/><text x="-150" y="5">NCS / CS</text></g>
+    <g transform="translate(200 362)"><circle class="pin"/><text x="-150" y="5">MOT (opt)</text></g>
+    <g transform="translate(200 394)"><circle class="pin"/><text x="-150" y="5">NRESET (opt)</text></g>
+  </g>
+
+  <!-- RP2040-Zero block (right) -->
+  <rect class="block" x="260" y="110" width="230" height="280" rx="10" />
+  <text x="310" y="140" font-weight="700">RP2040-Zero</text>
+  <!-- Board pins (left edge) -->
+  <g id="zero">
+    <g transform="translate(260 170)"><circle class="pin"/><text x="20" y="5">3V3</text></g>
+    <g transform="translate(260 202)"><circle class="pin"/><text x="20" y="5">GND</text></g>
+    <g transform="translate(260 234)"><circle class="pin"/><text x="20" y="5">GPIO2  (SPI0 SCK)</text></g>
+    <g transform="translate(260 266)"><circle class="pin"/><text x="20" y="5">GPIO3  (SPI0 TX)</text></g>
+    <g transform="translate(260 298)"><circle class="pin"/><text x="20" y="5">GPIO4  (SPI0 RX)</text></g>
+    <g transform="translate(260 330)"><circle class="pin"/><text x="20" y="5">GPIO5  (CS)</text></g>
+    <g transform="translate(260 362)"><circle class="pin"/><text x="20" y="5">GPIO6  (MOT, optional)</text></g>
+    <g transform="translate(260 394)"><circle class="pin"/><text x="20" y="5">RUN or 3V3 (reset)</text></g>
+  </g>
+
+  <!-- Wires: RP2040-Zero -->
+  <line class="wire" x1="200" y1="170" x2="260" y2="170" stroke="#e74c3c" />
+  <line class="wire" x1="200" y1="202" x2="260" y2="202" stroke="#111827" />
+  <line class="wire" x1="200" y1="234" x2="260" y2="234" stroke="#2563eb" />
+  <line class="wire" x1="200" y1="266" x2="260" y2="266" stroke="#f97316" />
+  <line class="wire" x1="200" y1="298" x2="260" y2="298" stroke="#22c55e" />
+  <line class="wire" x1="200" y1="330" x2="260" y2="330" stroke="#8b5cf6" />
+  <line class="wire optional" x1="200" y1="362" x2="260" y2="362" stroke="#94a3b8" />
+  <line class="wire optional" x1="200" y1="394" x2="260" y2="394" stroke="#64748b" />
+
+  <text class="note" x="40" y="430">Optional: MOT to any free GPIO (e.g., GP6). NRESET tied high to 3V3 or RUN.</text>
+
+  <!-- Panel: Raspberry Pi Pico -->
+  <rect class="panel" x="580" y="20" width="520" height="680" rx="14" />
+  <text class="title" x="600" y="52">Raspberry Pi Pico + PMW3389</text>
+  <text class="note" x="600" y="75">Orientation: USB up, pin numbers per official silkscreen.</text>
+
+  <!-- Sensor block (left) -->
+  <rect class="block" x="600" y="110" width="170" height="280" rx="10" />
+  <text x="630" y="140" font-weight="700">PMW3389</text>
+  <!-- Sensor pins -->
+  <g id="sensor2">
+    <g transform="translate(760 170)"><circle class="pin"/><text x="-150" y="5">VCC</text></g>
+    <g transform="translate(760 202)"><circle class="pin"/><text x="-150" y="5">GND</text></g>
+    <g transform="translate(760 234)"><circle class="pin"/><text x="-150" y="5">SCLK</text></g>
+    <g transform="translate(760 266)"><circle class="pin"/><text x="-150" y="5">MOSI</text></g>
+    <g transform="translate(760 298)"><circle class="pin"/><text x="-150" y="5">MISO</text></g>
+    <g transform="translate(760 330)"><circle class="pin"/><text x="-150" y="5">NCS / CS</text></g>
+    <g transform="translate(760 362)"><circle class="pin"/><text x="-150" y="5">MOT (opt)</text></g>
+    <g transform="translate(760 394)"><circle class="pin"/><text x="-150" y="5">NRESET (opt)</text></g>
+  </g>
+
+  <!-- Pico block (right) -->
+  <rect class="block" x="820" y="110" width="230" height="280" rx="10" />
+  <text x="860" y="140" font-weight="700">Raspberry Pi Pico</text>
+  <!-- Board pins (left edge) -->
+  <g id="pico">
+    <g transform="translate(820 170)"><circle class="pin"/><text x="20" y="5">3V3(OUT)  pin36</text></g>
+    <g transform="translate(820 202)"><circle class="pin"/><text x="20" y="5">GND  (pin3/8)</text></g>
+    <g transform="translate(820 234)"><circle class="pin"/><text x="20" y="5">GP2  (pin4, SPI0 SCK)</text></g>
+    <g transform="translate(820 266)"><circle class="pin"/><text x="20" y="5">GP3  (pin5, SPI0 TX)</text></g>
+    <g transform="translate(820 298)"><circle class="pin"/><text x="20" y="5">GP4  (pin6, SPI0 RX)</text></g>
+    <g transform="translate(820 330)"><circle class="pin"/><text x="20" y="5">GP5  (pin7, CS)</text></g>
+    <g transform="translate(820 362)"><circle class="pin"/><text x="20" y="5">GP6  (pin9, MOT opt)</text></g>
+    <g transform="translate(820 394)"><circle class="pin"/><text x="20" y="5">RUN or 3V3 (pin30)</text></g>
+  </g>
+
+  <!-- Wires: Pico -->
+  <line class="wire" x1="760" y1="170" x2="820" y2="170" stroke="#e74c3c" />
+  <line class="wire" x1="760" y1="202" x2="820" y2="202" stroke="#111827" />
+  <line class="wire" x1="760" y1="234" x2="820" y2="234" stroke="#2563eb" />
+  <line class="wire" x1="760" y1="266" x2="820" y2="266" stroke="#f97316" />
+  <line class="wire" x1="760" y1="298" x2="820" y2="298" stroke="#22c55e" />
+  <line class="wire" x1="760" y1="330" x2="820" y2="330" stroke="#8b5cf6" />
+  <line class="wire optional" x1="760" y1="362" x2="820" y2="362" stroke="#94a3b8" />
+  <line class="wire optional" x1="760" y1="394" x2="820" y2="394" stroke="#64748b" />
+
+  <text class="note" x="600" y="430">Optional: MOT to GP6 or any free GPIO. NRESET to 3V3 or RUN (pin30).</text>
+
+  <!-- Legend -->
+  <g transform="translate(40 500)">
+    <rect class="block" x="0" y="0" width="460" height="80" rx="10" />
+    <text x="16" y="26" font-weight="700">Wire colors</text>
+    <g transform="translate(16 44)">
+      <line class="wire" x1="0" y1="0" x2="30" y2="0" stroke="#e74c3c" /><text x="40" y="4">VCC</text>
+      <line class="wire" x1="90" y1="0" x2="120" y2="0" stroke="#111827" /><text x="130" y="4">GND</text>
+      <line class="wire" x1="180" y1="0" x2="210" y2="0" stroke="#2563eb" /><text x="220" y="4">SCLK</text>
+      <line class="wire" x1="270" y1="0" x2="300" y2="0" stroke="#f97316" /><text x="310" y="4">MOSI</text>
+      <line class="wire" x1="360" y1="0" x2="390" y2="0" stroke="#22c55e" /><text x="400" y="4">MISO</text>
+    </g>
+    <g transform="translate(16 68)">
+      <line class="wire" x1="0" y1="0" x2="30" y2="0" stroke="#8b5cf6" /><text x="40" y="4">CS</text>
+      <line class="wire optional" x1="90" y1="0" x2="120" y2="0" stroke="#94a3b8" /><text x="130" y="4">MOT (optional)</text>
+      <line class="wire optional" x1="270" y1="0" x2="300" y2="0" stroke="#64748b" /><text x="310" y="4">NRESET (optional)</text>
+    </g>
+  </g>
+</svg>
