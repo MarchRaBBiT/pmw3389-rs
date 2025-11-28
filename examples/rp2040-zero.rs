@@ -17,8 +17,19 @@ use itoa;
 use panic_probe as _;
 use pmw3389::Pmw3389;
 
-// SROM for PMW3389
-const PMW3389_SROM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/pmw3389_srom.bin"));
+// Provide SROM bytes only when the firmware image is available.
+#[cfg(pmw3389_has_srom)]
+fn pmw3389_srom() -> Option<&'static [u8]> {
+    Some(include_bytes!(concat!(
+        env!("OUT_DIR"),
+        "/pmw3389_srom.bin"
+    )))
+}
+
+#[cfg(not(pmw3389_has_srom))]
+fn pmw3389_srom() -> Option<&'static [u8]> {
+    None
+}
 
 bind_interrupts! { struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
@@ -77,13 +88,10 @@ async fn main(_spawner: Spawner) {
     spi_config.phase = Phase::CaptureOnSecondTransition;
     spi_config.polarity = Polarity::IdleHigh;
     let spi = Spi::new(
-        p.SPI0,
-        p.PIN_2, // SCLK
+        p.SPI0, p.PIN_2, // SCLK
         p.PIN_3, // MOSI
         p.PIN_4, // MISO
-        p.DMA_CH0,
-        p.DMA_CH1,
-        spi_config,
+        p.DMA_CH0, p.DMA_CH1, spi_config,
     );
 
     let cs_pin = Output::new(p.PIN_5, Level::High);
@@ -97,9 +105,13 @@ async fn main(_spawner: Spawner) {
             class.wait_connection().await;
             info!("USB connected");
 
-            if let Err(e) = sensor.init(PMW3389_SROM) {
-                info!("Sensor init failed: {:?}", e);
-                loop {}
+            if let Some(srom) = pmw3389_srom() {
+                if let Err(e) = sensor.init(srom) {
+                    info!("Sensor init failed: {:?}", e);
+                    loop {}
+                }
+            } else {
+                info!("pmw3389_srom.bin not found; skipping firmware upload");
             }
 
             let pid = unwrap!(sensor.product_id());
