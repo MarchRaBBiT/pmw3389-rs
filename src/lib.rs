@@ -1,4 +1,7 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
+
+#[cfg(test)]
+extern crate std;
 
 pub mod registers;
 
@@ -248,7 +251,9 @@ where
     CS: OutputPin,
     D: DelayNs,
 {
-    pub fn read_observation_data(&mut self) -> Result<ObservationData, Error<SPI::Error, CS::Error>> {
+    pub fn read_observation_data(
+        &mut self,
+    ) -> Result<ObservationData, Error<SPI::Error, CS::Error>> {
         let raw_data_sum = self.read_register(Register::RawDataSum)?;
         let maximum_raw_data = self.read_register(Register::MaximumRawData)?;
         let minimum_raw_data = self.read_register(Register::MinimumRawData)?;
@@ -269,5 +274,501 @@ where
     #[cfg(feature = "device-status")]
     pub fn read_bist_result(&mut self) -> Result<u8, Error<SPI::Error, CS::Error>> {
         self.read_register(Register::BistResult)
+    }
+}
+
+#[cfg(test)]
+mod test_util {
+    use super::*;
+    use crate::registers::Register;
+    use embedded_hal::delay::DelayNs;
+    use embedded_hal::digital::OutputPin;
+    use embedded_hal::spi::SpiBus;
+    use std::cell::RefCell;
+    use std::collections::VecDeque;
+    use std::rc::Rc;
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum SpiTransaction {
+        Write(Vec<u8>),
+        Read(Vec<u8>),
+    }
+
+    pub struct MockSpi {
+        expectations: Rc<RefCell<VecDeque<SpiTransaction>>>,
+    }
+
+    impl MockSpi {
+        pub fn new(expectations: Rc<RefCell<VecDeque<SpiTransaction>>>) -> Self {
+            Self { expectations }
+        }
+    }
+
+    impl SpiBus<u8> for MockSpi {
+        type Error = ();
+
+        fn read(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
+            let txn = self
+                .expectations
+                .borrow_mut()
+                .pop_front()
+                .expect("unexpected SPI read");
+            match txn {
+                SpiTransaction::Read(data) => {
+                    assert_eq!(
+                        data.len(),
+                        words.len(),
+                        "expected read length {} but got {}",
+                        data.len(),
+                        words.len()
+                    );
+                    words.copy_from_slice(&data);
+                    Ok(())
+                }
+                SpiTransaction::Write(data) => {
+                    panic!("expected SPI write {:?} but read() was called", data);
+                }
+            }
+        }
+
+        fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
+            let txn = self
+                .expectations
+                .borrow_mut()
+                .pop_front()
+                .expect("unexpected SPI write");
+            match txn {
+                SpiTransaction::Write(expected) => {
+                    assert_eq!(expected, words, "SPI write mismatch");
+                    Ok(())
+                }
+                SpiTransaction::Read(data) => {
+                    panic!(
+                        "expected SPI read {:?} but write({:?}) was called",
+                        data, words
+                    );
+                }
+            }
+        }
+
+        fn transfer(&mut self, _read: &mut [u8], _write: &[u8]) -> Result<(), Self::Error> {
+            panic!("unexpected SPI transfer call");
+        }
+
+        fn transfer_in_place(&mut self, _words: &mut [u8]) -> Result<(), Self::Error> {
+            panic!("unexpected SPI transfer_in_place call");
+        }
+
+        fn flush(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum PinAction {
+        High,
+        Low,
+    }
+
+    #[derive(Clone)]
+    pub struct MockPin {
+        log: Rc<RefCell<Vec<PinAction>>>,
+    }
+
+    impl MockPin {
+        pub fn new(log: Rc<RefCell<Vec<PinAction>>>) -> Self {
+            Self { log }
+        }
+    }
+
+    impl OutputPin for MockPin {
+        type Error = ();
+
+        fn set_low(&mut self) -> Result<(), Self::Error> {
+            self.log.borrow_mut().push(PinAction::Low);
+            Ok(())
+        }
+
+        fn set_high(&mut self) -> Result<(), Self::Error> {
+            self.log.borrow_mut().push(PinAction::High);
+            Ok(())
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum DelayCall {
+        Ns(u32),
+        Us(u32),
+        Ms(u32),
+    }
+
+    pub struct MockDelay {
+        calls: Rc<RefCell<Vec<DelayCall>>>,
+    }
+
+    impl MockDelay {
+        pub fn new(calls: Rc<RefCell<Vec<DelayCall>>>) -> Self {
+            Self { calls }
+        }
+    }
+
+    impl DelayNs for MockDelay {
+        fn delay_ns(&mut self, ns: u32) {
+            self.calls.borrow_mut().push(DelayCall::Ns(ns));
+        }
+
+        fn delay_us(&mut self, us: u32) {
+            self.calls.borrow_mut().push(DelayCall::Us(us));
+        }
+
+        fn delay_ms(&mut self, ms: u32) {
+            self.calls.borrow_mut().push(DelayCall::Ms(ms));
+        }
+    }
+
+    pub fn new_spi(
+        expectations: Vec<SpiTransaction>,
+    ) -> (MockSpi, Rc<RefCell<VecDeque<SpiTransaction>>>) {
+        let deque = Rc::new(RefCell::new(VecDeque::from(expectations)));
+        (MockSpi::new(deque.clone()), deque)
+    }
+
+    pub fn new_pin_log() -> (MockPin, Rc<RefCell<Vec<PinAction>>>) {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        (MockPin::new(log.clone()), log)
+    }
+
+    pub fn new_delay_log() -> (MockDelay, Rc<RefCell<Vec<DelayCall>>>) {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        (MockDelay::new(calls.clone()), calls)
+    }
+
+    pub fn push_write(expectations: &mut Vec<SpiTransaction>, reg: Register, value: u8) {
+        expectations.push(SpiTransaction::Write(vec![reg.addr() | 0x80, value]));
+    }
+
+    pub fn push_read(expectations: &mut Vec<SpiTransaction>, reg: Register, value: u8) {
+        expectations.push(SpiTransaction::Write(vec![reg.addr() & 0x7F]));
+        expectations.push(SpiTransaction::Read(vec![value]));
+    }
+
+    pub fn push_write_raw(expectations: &mut Vec<SpiTransaction>, bytes: Vec<u8>) {
+        expectations.push(SpiTransaction::Write(bytes));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_util::*;
+    use super::*;
+    use crate::registers::Register;
+
+    #[test]
+    fn new_sets_cs_high() {
+        let (spi, spi_state) = new_spi(Vec::new());
+        let (pin, pin_log) = new_pin_log();
+        let (delay, delay_log) = new_delay_log();
+
+        let driver = Pmw3389::new(spi, pin, delay);
+        assert!(driver.is_ok());
+        assert!(spi_state.borrow().is_empty());
+        assert!(delay_log.borrow().is_empty());
+
+        let log = pin_log.borrow();
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0], PinAction::High);
+    }
+
+    #[test]
+    fn set_cpi_writes_resolution_registers() {
+        let mut expectations = Vec::new();
+        push_write(&mut expectations, Register::ResolutionL, 0x10);
+        push_write(&mut expectations, Register::ResolutionH, 0x00);
+
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, pin_log) = new_pin_log();
+        let (delay, delay_log) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+        pin_log.borrow_mut().clear(); // ignore initial high
+
+        driver.set_cpi(800).unwrap();
+        assert!(spi_state.borrow().is_empty());
+
+        let log = pin_log.borrow();
+        assert_eq!(
+            log.as_slice(),
+            &[
+                PinAction::Low,
+                PinAction::High,
+                PinAction::Low,
+                PinAction::High
+            ]
+        );
+        let delay_entries = delay_log.borrow();
+        assert_eq!(
+            delay_entries
+                .iter()
+                .filter(|call| matches!(call, DelayCall::Us(35)))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn set_cpi_rejects_invalid_values() {
+        let (spi, _) = new_spi(Vec::new());
+        let (pin, _) = new_pin_log();
+        let (delay, _) = new_delay_log();
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+
+        for &value in &[40u16, 16_050, 55] {
+            let err = driver.set_cpi(value).unwrap_err();
+            assert!(matches!(err, Error::InvalidParam));
+        }
+    }
+
+    #[test]
+    fn read_motion_combines_bytes() {
+        let mut expectations = Vec::new();
+        push_read(&mut expectations, Register::Motion, 0x00);
+        push_read(&mut expectations, Register::DeltaXL, 0xFE);
+        push_read(&mut expectations, Register::DeltaXH, 0xFF);
+        push_read(&mut expectations, Register::DeltaYL, 0x05);
+        push_read(&mut expectations, Register::DeltaYH, 0x00);
+        push_read(&mut expectations, Register::Squal, 0x33);
+
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, pin_log) = new_pin_log();
+        let (delay, delay_log) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+        pin_log.borrow_mut().clear();
+
+        let motion = driver.read_motion().unwrap();
+        assert_eq!(motion.delta_x, -2);
+        assert_eq!(motion.delta_y, 5);
+        assert_eq!(motion.squal, 0x33);
+
+        assert!(spi_state.borrow().is_empty());
+
+        let log = pin_log.borrow();
+        assert_eq!(log.len(), 12);
+        assert!(log.iter().enumerate().all(|(idx, action)| {
+            if idx % 2 == 0 {
+                *action == PinAction::Low
+            } else {
+                *action == PinAction::High
+            }
+        }));
+
+        let delay_entries = delay_log.borrow();
+        assert_eq!(
+            delay_entries
+                .iter()
+                .filter(|call| matches!(call, DelayCall::Us(160)))
+                .count(),
+            6
+        );
+        assert_eq!(
+            delay_entries
+                .iter()
+                .filter(|call| matches!(call, DelayCall::Us(20)))
+                .count(),
+            6
+        );
+    }
+
+    #[test]
+    fn power_down_writes_shutdown_register() {
+        let mut expectations = Vec::new();
+        push_write(&mut expectations, Register::Shutdown, 0xB6);
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, pin_log) = new_pin_log();
+        let (delay, delay_log) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+        pin_log.borrow_mut().clear();
+
+        driver.power_down().unwrap();
+        assert!(spi_state.borrow().is_empty());
+        assert_eq!(
+            pin_log.borrow().as_slice(),
+            &[PinAction::Low, PinAction::High]
+        );
+        assert_eq!(
+            delay_log
+                .borrow()
+                .iter()
+                .filter(|call| matches!(call, DelayCall::Us(35)))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn product_id_reads_correct_register() {
+        let mut expectations = Vec::new();
+        push_read(&mut expectations, Register::ProductId, 0x42);
+
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, pin_log) = new_pin_log();
+        let (delay, _) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+        pin_log.borrow_mut().clear();
+
+        let pid = driver.product_id().unwrap();
+        assert_eq!(pid, 0x42);
+        assert!(spi_state.borrow().is_empty());
+    }
+
+    #[test]
+    fn init_performs_expected_sequence() {
+        let srom = [0xAA, 0x55, 0x11];
+
+        let mut expectations = Vec::new();
+        push_write(&mut expectations, Register::PowerUpReset, 0x5A);
+        for reg in &[
+            Register::Motion,
+            Register::DeltaXL,
+            Register::DeltaXH,
+            Register::DeltaYL,
+            Register::DeltaYH,
+        ] {
+            push_read(&mut expectations, *reg, 0x00);
+        }
+        push_write(&mut expectations, Register::SromEnable, 0x1D);
+        push_write(&mut expectations, Register::SromEnable, 0x18);
+        push_write_raw(&mut expectations, vec![Register::MotionBurst.addr() | 0x80]);
+        for byte in srom {
+            push_write_raw(&mut expectations, vec![byte]);
+        }
+        push_read(&mut expectations, Register::SromId, 0xA5);
+        for &(reg, value) in &[
+            (Register::Config2, 0x00),
+            (Register::RunDownshift, 0x4F),
+            (Register::Rest1RateLower, 0x1F),
+            (Register::Rest1RateUpper, 0x00),
+            (Register::Rest1Downshift, 0x20),
+            (Register::Rest2RateLower, 0x60),
+            (Register::Rest2RateUpper, 0x00),
+            (Register::Rest2Downshift, 0x30),
+        ] {
+            push_write(&mut expectations, reg, value);
+        }
+
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, pin_log) = new_pin_log();
+        let (delay, delay_log) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+        pin_log.borrow_mut().clear();
+
+        driver.init(&srom).unwrap();
+        assert!(spi_state.borrow().is_empty());
+
+        let log = pin_log.borrow();
+        assert_eq!(log.len(), 36);
+        assert!(log.iter().enumerate().all(|(idx, action)| {
+            if idx % 2 == 0 {
+                *action == PinAction::Low
+            } else {
+                *action == PinAction::High
+            }
+        }));
+
+        let delays = delay_log.borrow();
+        assert!(delays.contains(&DelayCall::Ms(50)));
+        assert!(delays.contains(&DelayCall::Ms(10)));
+        assert!(delays.contains(&DelayCall::Us(180)));
+        assert!(delays.contains(&DelayCall::Us(200)));
+        let write_delays = delays
+            .iter()
+            .filter(|call| matches!(call, DelayCall::Us(35)))
+            .count();
+        assert_eq!(write_delays, 10);
+    }
+}
+
+#[cfg(test)]
+mod register_tests {
+    use super::registers::Register;
+
+    #[test]
+    fn register_addresses_match_datasheet() {
+        assert_eq!(Register::ProductId.addr(), 0x00);
+        assert_eq!(Register::Motion.addr(), 0x02);
+        assert_eq!(Register::ResolutionH.addr(), 0x0F);
+        assert_eq!(Register::SromEnable.addr(), 0x13);
+        assert_eq!(Register::Shutdown.addr(), 0x3B);
+        assert_eq!(Register::MotionBurst.addr(), 0x50);
+    }
+}
+
+#[cfg(all(test, feature = "device-status"))]
+mod status_tests {
+    use super::test_util::*;
+    use super::*;
+    use crate::registers::Register;
+
+    #[test]
+    fn device_status_from_reg_decodes_flags() {
+        let status = DeviceStatus::from_reg(0b1001_0100);
+        assert!(status.is_motion);
+        assert!(matches!(status.operation_mode, OperationMode::Rest2));
+        assert!(status.is_self_test_running);
+
+        let status = DeviceStatus::from_reg(0b0000_0000);
+        assert!(!status.is_motion);
+        assert!(matches!(status.operation_mode, OperationMode::Run));
+        assert!(!status.is_self_test_running);
+    }
+
+    #[test]
+    fn read_observation_data_reads_all_fields() {
+        let mut expectations = Vec::new();
+        push_read(&mut expectations, Register::RawDataSum, 10);
+        push_read(&mut expectations, Register::MaximumRawData, 20);
+        push_read(&mut expectations, Register::MinimumRawData, 5);
+        push_read(&mut expectations, Register::ShutterLower, 30);
+        push_read(&mut expectations, Register::ShutterUpper, 40);
+
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, _) = new_pin_log();
+        let (delay, delay_log) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+
+        let obs = driver.read_observation_data().unwrap();
+        assert_eq!(obs.raw_data_sum, 10);
+        assert_eq!(obs.maximum_raw_data, 20);
+        assert_eq!(obs.minimum_raw_data, 5);
+        assert_eq!(obs.shutter_lower, 30);
+        assert_eq!(obs.shutter_upper, 40);
+        assert!(spi_state.borrow().is_empty());
+
+        assert_eq!(
+            delay_log
+                .borrow()
+                .iter()
+                .filter(|call| matches!(call, DelayCall::Us(160)))
+                .count(),
+            5
+        );
+    }
+
+    #[test]
+    fn read_bist_result_reads_correct_register() {
+        let mut expectations = Vec::new();
+        push_read(&mut expectations, Register::BistResult, 0x7F);
+        let (spi, spi_state) = new_spi(expectations);
+        let (pin, _) = new_pin_log();
+        let (delay, _) = new_delay_log();
+
+        let mut driver = Pmw3389::new(spi, pin, delay).unwrap();
+        let bist = driver.read_bist_result().unwrap();
+        assert_eq!(bist, 0x7F);
+        assert!(spi_state.borrow().is_empty());
     }
 }
