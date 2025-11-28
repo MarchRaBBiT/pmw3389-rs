@@ -68,8 +68,8 @@ pub enum Register {
     LiftConfig = 0x63,     // Lift_Config
 
     // Self-test
-    RunBist = 0x58,      // Run_BIST
-    BistResult = 0x59,   // BIST_Result
+    RunBist = 0x58,    // Run_BIST
+    BistResult = 0x59, // BIST_Result
 }
 
 impl Register {
